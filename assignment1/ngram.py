@@ -11,8 +11,9 @@ from collections import Counter
 
 def preprocess(file_contents, add_sent_markers=True):
     raw = clean_html(file_contents)
-    raw = re.sub('\d:\d ', "", raw)
+    raw = re.sub('\d:\d |\d,\d,|IsTruthFul,IsPositive,review', "", raw)
     sentence_list = tokenize.sent_tokenize(raw)
+    print sentence_list
     if add_sent_markers:
         sentence_list = [('<s> ' + sentence + ' </s>') for sentence in sentence_list]
     word_lists = [PunktWordTokenizer().tokenize(sentence) for sentence in sentence_list]
