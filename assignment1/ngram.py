@@ -11,13 +11,12 @@ from collections import Counter
 
 def preprocess(file_contents, add_sent_markers=True):
     raw = clean_html(file_contents)
-    raw = re.sub('\d:\d |\d,\d,|IsTruthFul,IsPositive,review', "", raw)
+    raw = re.sub(r'\d+:\d+|\d+,\d+,|IsTruthFul,IsPositive,review', "", raw)
     sentence_list = tokenize.sent_tokenize(raw)
-    print sentence_list
     if add_sent_markers:
         sentence_list = [('<s> ' + sentence + ' </s>') for sentence in sentence_list]
     word_lists = [PunktWordTokenizer().tokenize(sentence) for sentence in sentence_list]
-    word_list = [item.lower() for sublist in word_lists for item in sublist]
+    word_list = [item for sublist in word_lists for item in sublist]
     return word_list
 
 
@@ -29,6 +28,8 @@ def uni_bi_grams(file_contents):
     word_list = preprocess(file_contents)
     unigrams_dict = Counter(word_list)
     bigrams_dict = Counter(generate_bigrams_list(word_list))
+    bigrams_dict.pop(('<s>', '</s>'), None)
+    bigrams_dict.pop(('</s>', '<s>'), None)
     unigrams_len = sum(unigrams_dict.itervalues())
 
     unigrams_probability_dict = {}
@@ -37,7 +38,7 @@ def uni_bi_grams(file_contents):
 
     bigrams_probability_dict = {}
     for key, value in bigrams_dict.iteritems():
-        bigrams_probability_dict[key] = round(value/float(unigrams_dict[key[0]]), 4)
+        bigrams_probability_dict[key] = round(value/float(unigrams_dict[key[0]]), 6)
 
     return unigrams_probability_dict, bigrams_probability_dict
 
@@ -55,29 +56,30 @@ def unigram_random_sentence_generator(unigrams_prob_dict, sent_length=20):
             break
         sentence = sentence + ' ' + closest_key
 
-    return re.sub('<[^<]+?>', '', sentence)
+    return re.sub('<[^<]+?>', "", re.sub(' +([,:!?])', r'\1', sentence))
 
 
 def bigram_random_sentence_generator(bigrams_prob_dict, sent_length=30):
     sentence = ''
     mru_word = '<s>'
     while len(sentence.split()) < sent_length and '</s>' not in sentence:
-        rand_prob = random.uniform(0.0, 1.0)
+        rand_prob = round(random.uniform(0.0, 1.1), 6)
         short_bigram_dict = dict((k, v) for k, v in bigrams_prob_dict.iteritems() if k[0] == mru_word)
         closest_key, closest_val = min(short_bigram_dict.iteritems(), key=lambda (k, v): abs(v - rand_prob))
+        for k1, v1 in short_bigram_dict.iteritems():
+            if rand_prob - 0.4 <= v1 <= rand_prob + 0.4:
+                closest_key, closest_value = k1, v1
+
         if '<s>' not in sentence:
             if closest_key[0] == '<s>':
                 sentence += closest_key[0] + " " + closest_key[1]
+                mru_word = closest_key[1]
             else:
                 continue
         else:
-            mru_word = sentence.split()[-1]
-            if closest_key[0] == mru_word:
-                sentence += " " + closest_key[1]
-            else:
-                continue
-
-    return re.sub('<[^<]+?>', "", sentence)
+            sentence += " " + closest_key[1]
+            mru_word = closest_key[1]
+    return re.sub('<[^<]+?>', "", re.sub(' +([,:!?])', r'\1', sentence))
 
 
 def main():
@@ -93,16 +95,13 @@ def main():
 
     file_contents = file_obj.read()
     unigrams, bigrams = uni_bi_grams(file_contents)
-    '''print "Unigrams .........."
-    print unigrams
-    print "Bigrams................"
-    print bigrams'''
     print 'Unigram Random Sentence Generator...'
     unigrams_sent = unigram_random_sentence_generator(unigrams)
     print unigrams_sent
     print 'Bigram Random Sentence Generator...'
-    bigrams_sent = bigram_random_sentence_generator(bigrams)
-    print bigrams_sent
+    for i in range(1, 5):
+        bigrams_sent = bigram_random_sentence_generator(bigrams)
+        print bigrams_sent
     return True
 
 main()
