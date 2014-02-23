@@ -96,10 +96,11 @@ def main():
     file_contents = file_obj.read()
     unigrams, bigrams = uni_bi_grams(file_contents)
     print 'Unigram Random Sentence Generator...'
-    unigrams_sent = unigram_random_sentence_generator(unigrams)
-    print unigrams_sent
-    print 'Bigram Random Sentence Generator...'
     for i in range(1, 5):
+        unigrams_sent = unigram_random_sentence_generator(unigrams)
+        print unigrams_sent
+    print 'Bigram Random Sentence Generator...'
+    for i in range(1, 10):
         bigrams_sent = bigram_random_sentence_generator(bigrams)
         print bigrams_sent
     return True
