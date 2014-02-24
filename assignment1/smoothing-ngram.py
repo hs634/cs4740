@@ -198,7 +198,7 @@ def uni_bigram_good_turing_count(unigrams_dict, bigrams_dict):
     return unigrams_dict, bigrams_dict, bigram_gt_list
 
 
-def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict, unigrams_dict):
+def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict):
 
     key_set = unigrams_probability_dict.keys()
     unigram_sentence_prob = 0
@@ -212,14 +212,15 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
             word_prob = math.log(unigrams_probability_dict['<UNK>'], 2)
         unigram_sentence_prob += word_prob
 
-    N = float(sum(unigrams_dict.itervalues()))
+    N = float(len(word_list))
 
     print 'unigram log probability'
     logP = round(((-1 * unigram_sentence_prob)/N), 6)
     print logP
 
     print "Unigram Perplexity for test set"
-    print(2 ** (logP))
+    unigram_perplexity = 2 ** (logP)
+    print unigram_perplexity
 
     for i in range(len(word_list)-1):
         key = (word_list[i], word_list[i+1])
@@ -244,17 +245,19 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
     logP = round(((-1 * bigram_sentence_prob)/N), 6)
     print logP
     print "Bigram Perplexity for test set"
-    print(2 ** (logP))
+    bigram_perplexity = (2 ** (logP))
+    print bigram_perplexity
+    return unigram_perplexity, bigram_perplexity
 
 
 def lang_model(file_contents_train, file_contents_validation, file_contents_test):
     print "Calculate the unigram and bigram count on training set"
     unigrams_dict, bigrams_dict = create_dict(file_contents_train)
 
-    print 'Calculate unigram and bigram count from validation set accounting only unknown words'
-    word_list = preprocess(file_contents_validation)
-    unigrams_dict = unk_unigram(word_list, unigrams_dict)
-    bigrams_dict = unk_bigram(word_list, unigrams_dict, bigrams_dict)
+    # print 'Calculate unigram and bigram count from validation set accounting only unknown words'
+    # word_list = preprocess(file_contents_validation)
+    # unigrams_dict = unk_unigram(word_list, unigrams_dict)
+    # bigrams_dict = unk_bigram(word_list, unigrams_dict, bigrams_dict)
 
     print 'Adjust the counts for low frequency words using good turing smoothing.'
     unigrams_dict, bigrams_dict, bigram_gt_list = uni_bigram_good_turing_count(unigrams_dict, bigrams_dict)
@@ -276,7 +279,79 @@ def lang_model(file_contents_train, file_contents_validation, file_contents_test
         print bigrams_sent
 
     print 'Calculate the perplexity'
-    perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict, unigrams_dict)
+    perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict)
+
+
+def preprocess_hotel_review(file_contents, file_contents_test):
+    raw = clean_html(file_contents)
+    raw = re.sub(r'IsTruthFul,IsPositive,review', "", raw)
+    sentence_list = tokenize.line_tokenize(raw)
+    print sentence_list
+    truth_sentences = []
+    false_sentences = []
+    for sentence in sentence_list:
+        sent_arr = re.split(r',', sentence)
+        try:
+            is_truthful = int(sent_arr[0])
+        except ValueError:
+            print "is_truthful is not an integer"
+
+        if is_truthful == 1:
+            truth_sentences.append(sent_arr[2])
+        elif is_truthful == 0:
+            false_sentences.append(sent_arr[2])
+
+    truth_uni_prob_dict, truth_bi_prob_dict = process_prob(" ".join(truth_sentences))
+    false_uni_prob_dict, false_bi_prob_dict = process_prob(" ".join(false_sentences))
+
+    raw_test = clean_html(file_contents_test)
+    raw_test = re.sub(r'IsTruthFul,IsPositive,review', "", raw_test)
+    sentence_list_test = tokenize.line_tokenize(raw_test)
+    test_list = []
+    test_truth_false_list = []
+    truth_count = false_count = i = 0
+    for sentence in sentence_list_test:
+        sent_arr = re.split(r',', sentence)
+        truth_uni_perplex, truth_bi_perplex = perplexity(sent_arr[1], truth_uni_prob_dict, truth_bi_prob_dict)
+        false_uni_perplex, false_bi_perplex = perplexity(sent_arr[1], false_uni_prob_dict, false_bi_prob_dict)
+        test_list.append((sent_arr[1], truth_bi_perplex, false_bi_perplex))
+        truth_or_false = 1 if truth_bi_perplex < false_bi_perplex else 0
+        truth_or_false = 1 if truth_uni_perplex < false_uni_perplex else 0
+        if truth_or_false:
+            truth_count += 1
+        else:
+            false_count += 1
+        test_truth_false_list.append((i, truth_or_false))
+        i += 1
+    print test_list
+    print test_truth_false_list
+    print truth_count
+    print false_count
+
+
+
+    # for sentence
+    # if add_sent_markers:
+    #     sentence_list = [('<s> ' + sentence + ' </s>') for sentence in sentence_list]
+    # word_lists = [PunktWordTokenizer().tokenize(sentence) for sentence in sentence_list]
+    # word_list = [item for sublist in word_lists for item in sublist]
+    # return word_list
+
+
+def process_prob(file_contents):
+    print "Calculate the unigram and bigram count on training set"
+    unigrams_dict, bigrams_dict = create_dict(file_contents)
+
+    print 'Adjust the counts for low frequency words using good turing smoothing.'
+    unigrams_dict, bigrams_dict, bigram_gt_list = uni_bigram_good_turing_count(unigrams_dict, bigrams_dict)
+
+    print 'Calculate unigram and bigram probabilities'
+    unigrams_probability_dict, bigrams_probability_dict = uni_bi_grams(unigrams_dict, bigrams_dict)
+
+    print 'Replace the probabilities for threshold k values under good turing(applies only to bigram)'
+    bigram_good_turing_prob(bigrams_dict, bigrams_probability_dict, bigram_gt_list)
+
+    return unigrams_probability_dict, bigrams_probability_dict
 
 
 
@@ -288,6 +363,7 @@ def main():
     file_contents_train = read_file(sys.argv[1])
     file_contents_validation = read_file(sys.argv[2])
     file_contents_test = read_file(sys.argv[3])
-    lang_model(file_contents_train, file_contents_validation, file_contents_test)
+    #lang_model(file_contents_train, file_contents_validation, file_contents_test)
+    preprocess_hotel_review(file_contents_train, file_contents_test)
 
 main()

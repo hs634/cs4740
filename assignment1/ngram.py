@@ -29,7 +29,8 @@ def create_dict(file_contents):
     bigrams_dict = Counter(generate_bigrams_list(word_list))
     bigrams_dict.pop(('<s>', '</s>'), None)
     bigrams_dict.pop(('</s>', '<s>'), None)
-    return unigrams_dict,bigrams_dict
+    return unigrams_dict, bigrams_dict
+
 
 def uni_bi_grams(unigrams_dict, bigrams_dict):
 
