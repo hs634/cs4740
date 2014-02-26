@@ -4,10 +4,10 @@ import re
 import sys
 import random
 import operator
-import nltk
 import math
 from nltk import clean_html, tokenize, PunktWordTokenizer
 from collections import Counter, defaultdict
+from itertools import tee, islice
 
 
 def preprocess(file_contents, add_sent_markers=True):
@@ -25,12 +25,13 @@ def generate_bigrams_list(word_list):
     return zip(word_list, word_list[1:])
 
 
-def create_dict(file_contents):
+def create_dict(file_contents, pop_sent_markers=True):
     word_list = preprocess(file_contents)
     unigrams_dict = Counter(word_list)
     bigrams_dict = Counter(generate_bigrams_list(word_list))
-    bigrams_dict.pop(('<s>', '</s>'), None)
-    bigrams_dict.pop(('</s>', '<s>'), None)
+    if pop_sent_markers:
+        bigrams_dict.pop(('<s>', '</s>'), None)
+        bigrams_dict.pop(('</s>', '<s>'), None)
     unigrams_dict['<UNK>'] = 0
     bigrams_dict['<UNK>', '<UNK>'] = 0
     return unigrams_dict, bigrams_dict
@@ -214,9 +215,9 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
 
     N = float(len(word_list))
 
-    print 'unigram log probability'
     logP = round(((-1 * unigram_sentence_prob)/N), 6)
-    print logP
+    # print 'unigram log probability'
+    # print logP
 
     print "Unigram Perplexity for test set"
     unigram_perplexity = 2 ** (logP)
@@ -240,10 +241,9 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
         bi_word_prob = math.log(bigrams_probability_dict[key], 2)
         bigram_sentence_prob += bi_word_prob
 
-
-    print 'bigram log probability'
     logP = round(((-1 * bigram_sentence_prob)/N), 6)
-    print logP
+    #print 'bigram log probability'
+    #print logP
     print "Bigram Perplexity for test set"
     bigram_perplexity = (2 ** (logP))
     print bigram_perplexity
@@ -305,7 +305,7 @@ def preprocess_hotel_review(file_contents, file_contents_test):
     false_uni_prob_dict, false_bi_prob_dict = process_prob(" ".join(false_sentences))
 
     raw_test = clean_html(file_contents_test)
-    raw_test = re.sub(r'IsTruthFul,IsPositive,review', "", raw_test)
+    raw_test = re.sub(r'IsTruthFul,review', "", raw_test)
     sentence_list_test = tokenize.line_tokenize(raw_test)
     test_list = []
     test_truth_false_list = []
@@ -316,13 +316,19 @@ def preprocess_hotel_review(file_contents, file_contents_test):
         false_uni_perplex, false_bi_perplex = perplexity(sent_arr[1], false_uni_prob_dict, false_bi_prob_dict)
         test_list.append((sent_arr[1], truth_bi_perplex, false_bi_perplex))
         truth_or_false = 1 if truth_bi_perplex < false_bi_perplex else 0
-        truth_or_false = 1 if truth_uni_perplex < false_uni_perplex else 0
+        #truth_or_false = 1 if truth_uni_perplex < false_uni_perplex else 0
         if truth_or_false:
             truth_count += 1
         else:
             false_count += 1
-        test_truth_false_list.append((i, truth_or_false))
+        test_truth_false_list.append([i, truth_or_false])
         i += 1
+
+    import csv
+    with open("kaggle_sharp.csv", "wb") as f:
+        writer = csv.writer(f)
+        writer.writerows([['Id', 'Label']])
+        writer.writerows(test_truth_false_list)
     print test_list
     print test_truth_false_list
     print truth_count
@@ -342,8 +348,14 @@ def process_prob(file_contents):
     print "Calculate the unigram and bigram count on training set"
     unigrams_dict, bigrams_dict = create_dict(file_contents)
 
+    # print 'Calculate unigram and bigram count from validation set accounting only unknown words'
+    # word_list = preprocess(file_contents_validation)
+    # unigrams_dict = unk_unigram(word_list, unigrams_dict)
+    # bigrams_dict = unk_bigram(word_list, unigrams_dict, bigrams_dict)
+
     print 'Adjust the counts for low frequency words using good turing smoothing.'
     unigrams_dict, bigrams_dict, bigram_gt_list = uni_bigram_good_turing_count(unigrams_dict, bigrams_dict)
+
 
     print 'Calculate unigram and bigram probabilities'
     unigrams_probability_dict, bigrams_probability_dict = uni_bi_grams(unigrams_dict, bigrams_dict)
@@ -354,6 +366,58 @@ def process_prob(file_contents):
     return unigrams_probability_dict, bigrams_probability_dict
 
 
+def ngram(lst, n):
+    tlst = lst
+    while True:
+        a, b = tee(tlst)
+        l = tuple(islice(a, n))
+        if len(l) == n:
+            yield l
+            next(b)
+            tlst = b
+        else:
+            break
+
+
+def trigrams_prob(file_contents, bigrams_dict):
+    word_list = preprocess(file_contents)
+    trigrams_dict = Counter(ngram(word_list, 3))
+    trigrams_probability_dict = defaultdict(float)
+    for key, value in trigrams_dict.iteritems():
+        trigrams_probability_dict[key] = round(value/float(bigrams_dict[(key[0], key[1])]), 6)
+
+    return trigrams_probability_dict
+
+
+def trigram_random_sentence_generator(trigrams_prob_dict, sent_length=30):
+    sentence = ''
+    mru_word = '<s>'
+    while len(sentence.split()) < sent_length and '</s>' not in sentence:
+        rand_prob = round(random.uniform(0.0, 1.1), 6)
+        short_trigram_dict = dict((k, v) for k, v in trigrams_prob_dict.iteritems() if k[0] == mru_word)
+        closest_key, closest_val = min(short_trigram_dict.iteritems(), key=lambda (k, v): abs(v - rand_prob))
+        for k1, v1 in short_trigram_dict.iteritems():
+            if rand_prob - 0.02 <= v1 <= rand_prob + 0.02:
+                closest_key, closest_value = k1, v1
+
+        if '<s>' not in sentence:
+            if closest_key[0] == '<s>':
+                sentence += closest_key[0] + " " + closest_key[1] + " " + closest_key[2]
+                mru_word = closest_key[2]
+            else:
+                continue
+        else:
+            sentence += " " + closest_key[1] + " " + closest_key[2]
+            mru_word = closest_key[2]
+    return re.sub('<[^<]+?>', "", re.sub(' +([,:!?])', r'\1', sentence))
+
+
+def trigram_extension(file_contents_train):
+    unigrams_dict, bigrams_dict = create_dict(file_contents_train, False)
+    trigram_prob_dict = trigrams_prob(file_contents_train, bigrams_dict)
+    for i in range(1, 5):
+        tri_sent = trigram_random_sentence_generator(trigram_prob_dict)
+        print tri_sent
 
 def main():
     if len(sys.argv) < 2:
@@ -363,7 +427,9 @@ def main():
     file_contents_train = read_file(sys.argv[1])
     file_contents_validation = read_file(sys.argv[2])
     file_contents_test = read_file(sys.argv[3])
-    #lang_model(file_contents_train, file_contents_validation, file_contents_test)
+    lang_model(file_contents_train, file_contents_validation, file_contents_test)
     preprocess_hotel_review(file_contents_train, file_contents_test)
+    trigram_extension(file_contents_train)
+
 
 main()
