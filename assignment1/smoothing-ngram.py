@@ -11,6 +11,12 @@ from itertools import tee, islice
 
 
 def preprocess(file_contents, add_sent_markers=True):
+    """
+    :rtype : object
+    :param file_contents: contents of the file that needs to be preprocessed
+    :param add_sent_markers: flag to enable addition of sentence start and end markers. True by default.
+    :return: list of tokenized words
+    """
     raw = clean_html(file_contents)
     raw = re.sub(r'\d+:\d+|\d+,\d+,|IsTruthFul,IsPositive,review', "", raw)
     sentence_list = tokenize.sent_tokenize(raw)
@@ -22,10 +28,18 @@ def preprocess(file_contents, add_sent_markers=True):
 
 
 def generate_bigrams_list(word_list):
+    """
+        Function to generate bigrams given a list of words
+    """
     return zip(word_list, word_list[1:])
 
 
 def create_dict(file_contents, pop_sent_markers=True):
+    """
+    creates unigram and bigram dictionary containing the counts of each token
+    :param file_contents: file contents
+    :param pop_sent_markers: flag to keep or remove sentence start and end markers from the dictionaries
+    """
     word_list = preprocess(file_contents)
     unigrams_dict = Counter(word_list)
     bigrams_dict = Counter(generate_bigrams_list(word_list))
@@ -38,20 +52,31 @@ def create_dict(file_contents, pop_sent_markers=True):
 
 
 def uni_bi_grams(unigrams_dict, bigrams_dict):
+    """
+    Creates unigram and bigram probability
+    :param unigrams_dict: unigram counts
+    :param bigrams_dict: bigrams
+    """
     unigrams_len = sum(unigrams_dict.itervalues())
     unigrams_probability_dict = {}
 
     for key, value in unigrams_dict.iteritems():
-        unigrams_probability_dict[key] = round(value/float(unigrams_len), 6)
+        unigrams_probability_dict[key] = round(value / float(unigrams_len), 6)
     bigrams_probability_dict = {}
 
     for key, value in bigrams_dict.iteritems():
-        bigrams_probability_dict[key] = round(value/float(unigrams_dict[key[0]]), 6)
+        bigrams_probability_dict[key] = round(value / float(unigrams_dict[key[0]]), 6)
 
     return unigrams_probability_dict, bigrams_probability_dict
 
 
 def unigram_random_sentence_generator(unigrams_prob_dict, sent_length=20):
+    """
+    unigram random sentence generator
+    :param unigrams_prob_dict: unigram probability dictionary
+    :param sent_length: default sentence length
+    :return: unigram generated random sentence
+    """
     sentence = ''
     padding = 0.05
 
@@ -69,6 +94,12 @@ def unigram_random_sentence_generator(unigrams_prob_dict, sent_length=20):
 
 
 def bigram_random_sentence_generator(bigrams_prob_dict, sent_length=30):
+    """
+    bigram random sentence generator
+    :param bigrams_prob_dict: bigram probability dictionary
+    :param sent_length: default sentence length
+    :return: bigram generated random sentence
+    """
     sentence = ''
     mru_word = '<s>'
     while len(sentence.split()) < sent_length and '</s>' not in sentence:
@@ -92,6 +123,11 @@ def bigram_random_sentence_generator(bigrams_prob_dict, sent_length=30):
 
 
 def read_file(filename):
+    """
+
+    :param filename: name of the file.
+    :return: file contents
+    """
     try:
         file_obj = open(filename)
     except IOError:
@@ -101,6 +137,12 @@ def read_file(filename):
 
 
 def unk_unigram(word_list, unigrams_dict):
+    """
+    Add Unknowns from validation file
+    :param word_list: list of words
+    :param unigrams_dict: unigram dictionary
+    :return: unigram dict is unknown
+    """
     unigrams_unk_cnt = 0
     for word in word_list:
         if word not in unigrams_dict.keys():
@@ -111,16 +153,23 @@ def unk_unigram(word_list, unigrams_dict):
 
 
 def unk_bigram(word_list, unigrams_dict, bigrams_dict):
+    """
+    Add Unknowns from validation file
+    :param word_list: list of words
+    :param unigrams_dict: unigram dictionary
+    :param bigrams_dict: bigram dictionary
+    :return: bigram dict with unknown
+    """
     bigram_unk_hash = defaultdict(int)
     key_set = unigrams_dict.keys()
-    for i in range(len(word_list)-1):
+    for i in range(len(word_list) - 1):
         if word_list[i] not in key_set:
-            if word_list[i+1] not in key_set:
+            if word_list[i + 1] not in key_set:
                 bigram_unk_hash[('<UNK>', '<UNK>')] += 1
             else:
-                bigram_unk_hash[('<UNK>', word_list[i+1])] += 1
+                bigram_unk_hash[('<UNK>', word_list[i + 1])] += 1
         else:
-            if word_list[i+1] not in key_set:
+            if word_list[i + 1] not in key_set:
                 bigram_unk_hash[(word_list[i], '<UNK>')] += 1
 
     bigrams_dict = dict(bigram_unk_hash.items() + bigrams_dict.items())
@@ -128,6 +177,13 @@ def unk_bigram(word_list, unigrams_dict, bigrams_dict):
 
 
 def unigram_calculate_freq(frequency, unigram_freq_hash, unigrams_dict):
+    """
+    frequency calculation
+    :param frequency:
+    :param unigram_freq_hash:
+    :param unigrams_dict:
+    :return:
+    """
     count = 0
     if frequency in unigram_freq_hash:
         return unigram_freq_hash.get(frequency)
@@ -138,6 +194,13 @@ def unigram_calculate_freq(frequency, unigram_freq_hash, unigrams_dict):
 
 
 def bigrams_calculate_freq(frequency, bigram_freq_hash, bigrams_dict):
+    """
+    frequency calculation
+    :param frequency:
+    :param bigram_freq_hash:
+    :param bigrams_dict:
+    :return:
+    """
     count = 0
     if frequency in bigram_freq_hash:
         return bigram_freq_hash.get(frequency)
@@ -149,7 +212,13 @@ def bigrams_calculate_freq(frequency, bigram_freq_hash, bigrams_dict):
 
 
 def bigram_good_turing_prob(bigrams_dict, bigrams_prob_dict, bigram_gt_list):
-
+    """
+    Bigram good turing implementation
+    :param bigrams_dict:
+    :param bigrams_prob_dict:
+    :param bigram_gt_list:
+    :return:
+    """
     total_N_bigram = sum(bigrams_dict.itervalues())
     for key, value in bigram_gt_list.iteritems():
         prob_good_turing = float(value) / total_N_bigram
@@ -159,7 +228,12 @@ def bigram_good_turing_prob(bigrams_dict, bigrams_prob_dict, bigram_gt_list):
 
 
 def uni_bigram_good_turing_count(unigrams_dict, bigrams_dict):
-
+    """
+    Unigram and bigram good turing count calculation
+    :param unigrams_dict:
+    :param bigrams_dict:
+    :return:
+    """
     unigram_freq_hash = {}
     bigram_freq_hash = {}
     bigram_gt_list = defaultdict(float)
@@ -168,21 +242,21 @@ def uni_bigram_good_turing_count(unigrams_dict, bigrams_dict):
 
     for key, c in unigrams_dict.iteritems():
         if c < 1:
-            freq_c_1 = unigram_freq_dict[c+1]
+            freq_c_1 = unigram_freq_dict[c + 1]
             if freq_c_1 != 0:
                 unigrams_dict[key] = freq_c_1
         else:
             if 1 <= c < 5:
                 freq_c = unigram_freq_dict[c]
-                freq_c_1 = unigram_freq_dict[c+1]
-                unigram_freq_hash[c+1] = freq_c_1
+                freq_c_1 = unigram_freq_dict[c + 1]
+                unigram_freq_hash[c + 1] = freq_c_1
                 if freq_c_1 != 0:
                     updated_c = ((c + 1) * freq_c_1) / float(freq_c)
                     unigrams_dict[key] = updated_c
 
     for key, c in bigrams_dict.iteritems():
         if c < 1:
-            freq_c_1 = bigrams_freq_dict[c+1]
+            freq_c_1 = bigrams_freq_dict[c + 1]
             if freq_c_1 != 0:
                 bigrams_dict[key] = freq_c_1
                 bigram_gt_list[key] = freq_c_1
@@ -190,7 +264,7 @@ def uni_bigram_good_turing_count(unigrams_dict, bigrams_dict):
         else:
             if 1 <= c < 5:
                 freq_c = bigrams_freq_dict[c]
-                freq_c_1 = bigrams_freq_dict[c+1]
+                freq_c_1 = bigrams_freq_dict[c + 1]
                 if freq_c_1 != 0:
                     updated_c = ((c + 1) * freq_c_1) / float(freq_c)
                     bigrams_dict[key] = updated_c
@@ -200,7 +274,13 @@ def uni_bigram_good_turing_count(unigrams_dict, bigrams_dict):
 
 
 def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict):
-
+    """
+    Perplexity calculation
+    :param file_contents_test:
+    :param unigrams_probability_dict:
+    :param bigrams_probability_dict:
+    :return:
+    """
     key_set = unigrams_probability_dict.keys()
     unigram_sentence_prob = 0
     bigram_sentence_prob = 0
@@ -215,7 +295,7 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
 
     N = float(len(word_list))
 
-    logP = round(((-1 * unigram_sentence_prob)/N), 6)
+    logP = round(((-1 * unigram_sentence_prob) / N), 6)
     # print 'unigram log probability'
     # print logP
 
@@ -223,17 +303,17 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
     unigram_perplexity = 2 ** (logP)
     print unigram_perplexity
 
-    for i in range(len(word_list)-1):
-        key = (word_list[i], word_list[i+1])
+    for i in range(len(word_list) - 1):
+        key = (word_list[i], word_list[i + 1])
         if key not in bigrams_probability_dict:
             key = ('<UNK>', '<UNK>')
 
             if word_list[i] not in key_set:
-                if word_list[i+1] in key_set:
-                    key = ('<UNK>', word_list[i+1])
+                if word_list[i + 1] in key_set:
+                    key = ('<UNK>', word_list[i + 1])
 
             else:
-                if word_list[i+1] not in key_set:
+                if word_list[i + 1] not in key_set:
                     key = (word_list[i], '<UNK>')
         if key not in bigrams_probability_dict:
             key = ('<UNK>', '<UNK>')
@@ -241,7 +321,7 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
         bi_word_prob = math.log(bigrams_probability_dict[key], 2)
         bigram_sentence_prob += bi_word_prob
 
-    logP = round(((-1 * bigram_sentence_prob)/N), 6)
+    logP = round(((-1 * bigram_sentence_prob) / N), 6)
     #print 'bigram log probability'
     #print logP
     print "Bigram Perplexity for test set"
@@ -251,6 +331,12 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
 
 
 def lang_model(file_contents_train, file_contents_validation, file_contents_test):
+    """
+    Method to generate the language model, smoothing, perplexity and random sentences
+    :param file_contents_train:
+    :param file_contents_validation:
+    :param file_contents_test:
+    """
     print "Calculate the unigram and bigram count on training set"
     unigrams_dict, bigrams_dict = create_dict(file_contents_train)
 
@@ -283,6 +369,11 @@ def lang_model(file_contents_train, file_contents_validation, file_contents_test
 
 
 def preprocess_hotel_review(file_contents, file_contents_test):
+    """
+    Hotel review preprocess and truthfulness of the hotel review
+    :param file_contents:
+    :param file_contents_test:
+    """
     raw = clean_html(file_contents)
     raw = re.sub(r'IsTruthFul,IsPositive,review', "", raw)
     sentence_list = tokenize.line_tokenize(raw)
@@ -325,6 +416,7 @@ def preprocess_hotel_review(file_contents, file_contents_test):
         i += 1
 
     import csv
+
     with open("kaggle_sharp.csv", "wb") as f:
         writer = csv.writer(f)
         writer.writerows([['Id', 'Label']])
@@ -335,16 +427,13 @@ def preprocess_hotel_review(file_contents, file_contents_test):
     print false_count
 
 
-
-    # for sentence
-    # if add_sent_markers:
-    #     sentence_list = [('<s> ' + sentence + ' </s>') for sentence in sentence_list]
-    # word_lists = [PunktWordTokenizer().tokenize(sentence) for sentence in sentence_list]
-    # word_list = [item for sublist in word_lists for item in sublist]
-    # return word_list
-
-
 def process_prob(file_contents):
+
+    """
+    Generate the probabilites of unigram and bigram and apply good turing
+    :param file_contents:
+    :return:
+    """
     print "Calculate the unigram and bigram count on training set"
     unigrams_dict, bigrams_dict = create_dict(file_contents)
 
@@ -356,7 +445,6 @@ def process_prob(file_contents):
     print 'Adjust the counts for low frequency words using good turing smoothing.'
     unigrams_dict, bigrams_dict, bigram_gt_list = uni_bigram_good_turing_count(unigrams_dict, bigrams_dict)
 
-
     print 'Calculate unigram and bigram probabilities'
     unigrams_probability_dict, bigrams_probability_dict = uni_bi_grams(unigrams_dict, bigrams_dict)
 
@@ -367,6 +455,11 @@ def process_prob(file_contents):
 
 
 def ngram(lst, n):
+    """
+    Generic generator for generating ngrams
+    :param lst: list of words
+    :param n: the 'n' of ngrams
+    """
     tlst = lst
     while True:
         a, b = tee(tlst)
@@ -380,16 +473,28 @@ def ngram(lst, n):
 
 
 def trigrams_prob(file_contents, bigrams_dict):
+    """
+    Trigram extension
+    :param file_contents:
+    :param bigrams_dict:
+    :return:
+    """
     word_list = preprocess(file_contents)
     trigrams_dict = Counter(ngram(word_list, 3))
     trigrams_probability_dict = defaultdict(float)
     for key, value in trigrams_dict.iteritems():
-        trigrams_probability_dict[key] = round(value/float(bigrams_dict[(key[0], key[1])]), 6)
+        trigrams_probability_dict[key] = round(value / float(bigrams_dict[(key[0], key[1])]), 6)
 
     return trigrams_probability_dict
 
 
 def trigram_random_sentence_generator(trigrams_prob_dict, sent_length=30):
+    """
+    Trigram random sentence generator
+    :param trigrams_prob_dict:
+    :param sent_length:
+    :return:
+    """
     sentence = ''
     mru_word = '<s>'
     while len(sentence.split()) < sent_length and '</s>' not in sentence:
@@ -413,22 +518,30 @@ def trigram_random_sentence_generator(trigrams_prob_dict, sent_length=30):
 
 
 def trigram_extension(file_contents_train):
+    """
+    Method for trigram extension
+    :param file_contents_train:
+    """
     unigrams_dict, bigrams_dict = create_dict(file_contents_train, False)
     trigram_prob_dict = trigrams_prob(file_contents_train, bigrams_dict)
     for i in range(1, 5):
         tri_sent = trigram_random_sentence_generator(trigram_prob_dict)
         print tri_sent
 
+
 def main():
     if len(sys.argv) < 2:
-        print "Please enter the name of a corpus file as a command line argument."
+        print "Please enter the names of training validation and test files names as command line arguments."
         sys.exit()
-
+    #read all three files
     file_contents_train = read_file(sys.argv[1])
     file_contents_validation = read_file(sys.argv[2])
     file_contents_test = read_file(sys.argv[3])
+    #language model, smoothing and good turing runner
     lang_model(file_contents_train, file_contents_validation, file_contents_test)
+    #hotel review truthfulness runner
     preprocess_hotel_review(file_contents_train, file_contents_test)
+    #trigram extension runner
     trigram_extension(file_contents_train)
 
 
