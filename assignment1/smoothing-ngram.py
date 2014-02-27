@@ -285,6 +285,7 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
     unigram_sentence_prob = 0
     bigram_sentence_prob = 0
     word_list = preprocess(file_contents_test)
+    print sum(Counter(word_list).itervalues())
     for item in word_list:
         #if item != '<s>' or item != '</s>':
         if item in unigrams_probability_dict:
@@ -294,8 +295,13 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
         unigram_sentence_prob += word_prob
 
     N = float(len(word_list))
+<<<<<<< Updated upstream
 
     logP = round(((-1 * unigram_sentence_prob) / N), 6)
+=======
+    print N
+    logP = round(((-1 * unigram_sentence_prob)/N), 6)
+>>>>>>> Stashed changes
     # print 'unigram log probability'
     # print logP
 
@@ -308,6 +314,7 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
         if key not in bigrams_probability_dict:
             key = ('<UNK>', '<UNK>')
 
+<<<<<<< Updated upstream
             if word_list[i] not in key_set:
                 if word_list[i + 1] in key_set:
                     key = ('<UNK>', word_list[i + 1])
@@ -317,6 +324,17 @@ def perplexity(file_contents_test, unigrams_probability_dict, bigrams_probabilit
                     key = (word_list[i], '<UNK>')
         if key not in bigrams_probability_dict:
             key = ('<UNK>', '<UNK>')
+=======
+        #     if word_list[i] not in key_set:
+        #         if word_list[i+1] in key_set:
+        #             key = ('<UNK>', word_list[i+1])
+        #
+        #     else:
+        #         if word_list[i+1] not in key_set:
+        #             key = (word_list[i], '<UNK>')
+        # if key not in bigrams_probability_dict:
+        #     key = ('<UNK>', '<UNK>')
+>>>>>>> Stashed changes
 
         bi_word_prob = math.log(bigrams_probability_dict[key], 2)
         bigram_sentence_prob += bi_word_prob
@@ -368,16 +386,20 @@ def lang_model(file_contents_train, file_contents_validation, file_contents_test
     perplexity(file_contents_test, unigrams_probability_dict, bigrams_probability_dict)
 
 
+<<<<<<< Updated upstream
 def preprocess_hotel_review(file_contents, file_contents_test):
     """
     Hotel review preprocess and truthfulness of the hotel review
     :param file_contents:
     :param file_contents_test:
     """
+=======
+def truthful_hotel_review(file_contents, file_contents_test):
+>>>>>>> Stashed changes
     raw = clean_html(file_contents)
     raw = re.sub(r'IsTruthFul,IsPositive,review', "", raw)
     sentence_list = tokenize.line_tokenize(raw)
-    print sentence_list
+    #print sentence_list
     truth_sentences = []
     false_sentences = []
     for sentence in sentence_list:
@@ -524,6 +546,7 @@ def trigram_extension(file_contents_train):
     """
     unigrams_dict, bigrams_dict = create_dict(file_contents_train, False)
     trigram_prob_dict = trigrams_prob(file_contents_train, bigrams_dict)
+    print 'Trigram sentence generation'
     for i in range(1, 5):
         tri_sent = trigram_random_sentence_generator(trigram_prob_dict)
         print tri_sent
@@ -539,10 +562,15 @@ def main():
     file_contents_test = read_file(sys.argv[3])
     #language model, smoothing and good turing runner
     lang_model(file_contents_train, file_contents_validation, file_contents_test)
+<<<<<<< Updated upstream
     #hotel review truthfulness runner
     preprocess_hotel_review(file_contents_train, file_contents_test)
     #trigram extension runner
     trigram_extension(file_contents_train)
+=======
+    truthful_hotel_review(file_contents_train, file_contents_validation)
+    #trigram_extension(file_contents_train)
+>>>>>>> Stashed changes
 
 
 main()
